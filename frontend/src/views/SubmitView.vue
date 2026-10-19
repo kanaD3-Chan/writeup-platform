@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { t, dateLocale, translateError } from '@/i18n'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getGame, type GameItem } from '@/api/game'
@@ -21,6 +21,9 @@ const submitting = ref(false)
 const error = ref('')
 const success = ref(false)
 const lockReason = ref('')  // non-empty = locked
+
+// A pinned game is the landing page, so there is no list to go back to.
+const showBack = computed(() => (game.value ? !game.value.pinned : !!error.value))
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
@@ -87,7 +90,7 @@ onMounted(load)
 <template>
   <div class="submit-view page-shell">
     <div class="submit-container">
-      <button class="back-btn" @click="router.push('/')"><UiIcon name="arrowLeft" :size="16" />{{ t('common.back') }}</button>
+      <button v-if="showBack" class="back-btn" @click="router.push('/')"><UiIcon name="arrowLeft" :size="16" />{{ t('common.back') }}</button>
       <div v-if="loading" class="state-msg" role="status"><div class="spinner"></div>{{ t('common.loading') }}</div>
       <template v-else-if="game">
         <div class="page-heading">

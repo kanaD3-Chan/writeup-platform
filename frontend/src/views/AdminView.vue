@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { t, dateLocale, translateError } from '@/i18n'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import UiIcon from '@/components/UiIcon.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getGame, pinGame, unpinGame, type GameItem } from '@/api/game'
@@ -17,6 +17,9 @@ const page = ref(1)
 const loading = ref(false)
 const error = ref('')
 const PAGE_SIZE = 50
+
+// A pinned game is the landing page, so there is no list to go back to.
+const showBack = computed(() => (game.value ? !game.value.pinned : !!error.value))
 
 function formatDate(s: string): string {
   return new Date(s).toLocaleString(dateLocale)
@@ -83,7 +86,7 @@ onMounted(load)
 <template>
   <div class="admin-view page-shell">
     <div class="admin-container">
-      <button class="back-btn" @click="router.push('/')">
+      <button v-if="showBack" class="back-btn" @click="router.push('/')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
