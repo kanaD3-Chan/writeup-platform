@@ -3,7 +3,7 @@ import { t, dateLocale, translateError } from '@/i18n'
 import { ref, onMounted } from 'vue'
 import UiIcon from '@/components/UiIcon.vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getGame, type GameItem } from '@/api/game'
+import { getGame, pinGame, unpinGame, type GameItem } from '@/api/game'
 import { getGameWriteups, downloadGameWriteups, downloadUserWriteup, deleteUserWriteup, type WriteupRecord } from '@/api/writeup'
 
 const route = useRoute()
@@ -46,6 +46,22 @@ async function load() {
 }
 
 const deleting = ref<number | null>(null)
+const pinUpdating = ref(false)
+
+async function togglePin() {
+  if (!game.value) return
+  pinUpdating.value = true
+  const next = !game.value.pinned
+  try {
+    if (next) await pinGame(gameId)
+    else await unpinGame(gameId)
+    game.value = { ...game.value, pinned: next }
+  } catch (e: any) {
+    alert(translateError(e.response?.data?.error, 'admin.pinFailed'))
+  } finally {
+    pinUpdating.value = false
+  }
+}
 
 async function handleDelete(w: WriteupRecord) {
   if (!confirm(t('admin.deleteConfirm', { name: w.team_name ?? w.user_account }))) return
@@ -83,10 +99,14 @@ onMounted(load)
       <template v-else>
         <div class="page-heading">
           <div>
-            <h1 class="heading-title"><UiIcon name="settings" :size="26" />{{ game?.name ?? t('admin.title') }}</h1>
+            <h1 class="heading-title"><UiIcon name="settings" :size="26" />{{ game?.name ?? t('admin.title') }}<span v-if="game?.pinned" class="tag tag-primary"><UiIcon name="pin" :size="12" />{{ t('admin.pinned') }}</span></h1>
             <p class="heading-sub">{{ t('admin.count', { count: total }) }}</p>
           </div>
           <div class="header-actions">
+            <button class="btn" :disabled="pinUpdating" :aria-pressed="game?.pinned ?? false" :title="t('admin.pinHint')" @click="togglePin">
+              <UiIcon name="pin" :size="16" />
+              {{ game?.pinned ? t('admin.unpin') : t('admin.pin') }}
+            </button>
             <button class="btn" @click="router.push({ name: 'admin-reader', params: { gameId } })">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M12 7v14M3 3h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5v16h-5a4 4 0 0 0-4 2 4 4 0 0 0-4-2H3z"/>

@@ -1,3 +1,4 @@
+pub mod pinned;
 pub mod writeup;
 
 use anyhow::Result;

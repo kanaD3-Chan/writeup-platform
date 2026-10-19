@@ -38,11 +38,13 @@ pub struct GameItem {
     pub end_at: Option<chrono::DateTime<Utc>>,
     pub archive_at: Option<chrono::DateTime<Utc>>,
     pub can_submit: bool,
+    pub pinned: bool,
     pub admins: Vec<i64>,
 }
 
-impl From<GameRow> for GameItem {
-    fn from(r: GameRow) -> Self {
+impl GameItem {
+    fn new(r: GameRow, pinned_id: Option<i64>) -> Self {
+        let pinned = pinned_id == Some(r.id);
         let admins = r
             .admins
             .as_array()
@@ -57,6 +59,7 @@ impl From<GameRow> for GameItem {
             end_at: r.end_at,
             archive_at: r.archive_at,
             can_submit: can_submit(r.host_type, r.hidden, r.archive_at),
+            pinned,
             admins,
         }
     }
@@ -86,14 +89,11 @@ fn can_submit(host_type: i32, hidden: bool, archive_at: Option<chrono::DateTime<
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", get(list_games))
+        .route("/pinned", get(get_pinned_game))
         .route("/{game_id}", get(get_game))
 }
 
-async fn get_game(
-    State(state): State<Arc<AppState>>,
-    OptionalToken(token): OptionalToken,
-    Path(game_id): Path<i64>,
-) -> Result<impl IntoResponse> {
+async fn fetch_game_row(state: &AppState, game_id: i64) -> Result<Option<GameRow>> {
     let row = sqlx::query_as::<_, GameRow>(
         r#"SELECT id, name, brief, host_type, start_at, end_at, archive_at, hidden, admins
            FROM game WHERE id = $1"#,
@@ -101,16 +101,55 @@ async fn get_game(
     .bind(game_id)
     .fetch_optional(&state.r2s_db)
     .await
-    .map_err(anyhow::Error::from)?
-    .ok_or_else(|| AppError::NotFound("game not found".into()))?;
+    .map_err(anyhow::Error::from)?;
+    Ok(row)
+}
+
+async fn pinned_game_id(state: &AppState) -> Result<Option<i64>> {
+    let game_id = database::pinned::get_game_id(&state.db)
+        .await
+        .map_err(anyhow::Error::from)?;
+    Ok(game_id)
+}
+
+async fn get_game(
+    State(state): State<Arc<AppState>>,
+    OptionalToken(token): OptionalToken,
+    Path(game_id): Path<i64>,
+) -> Result<impl IntoResponse> {
+    let row = fetch_game_row(&state, game_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("game not found".into()))?;
 
     let hidden = row.hidden;
-    let item = GameItem::from(row);
+    let item = GameItem::new(row, pinned_game_id(&state).await?);
     if hidden && !token.is_some_and(|t| t.is_basic() && t.is_game_admin(&item.admins)) {
         return Err(AppError::NotFound("game not found".into()));
     }
 
     Ok(Json(item))
+}
+
+/// The currently pinned game, or `null` when nothing is pinned. Hidden games are
+/// only returned to their admins so a pin never leaks them to contestants.
+async fn get_pinned_game(
+    State(state): State<Arc<AppState>>,
+    OptionalToken(token): OptionalToken,
+) -> Result<impl IntoResponse> {
+    let Some(game_id) = pinned_game_id(&state).await? else {
+        return Ok(Json(serde_json::json!({ "game": null })));
+    };
+    let Some(row) = fetch_game_row(&state, game_id).await? else {
+        return Ok(Json(serde_json::json!({ "game": null })));
+    };
+
+    let hidden = row.hidden;
+    let item = GameItem::new(row, Some(game_id));
+    if hidden && !token.is_some_and(|t| t.is_basic() && t.is_game_admin(&item.admins)) {
+        return Ok(Json(serde_json::json!({ "game": null })));
+    }
+
+    Ok(Json(serde_json::json!({ "game": item })))
 }
 
 async fn list_games(
@@ -120,6 +159,7 @@ async fn list_games(
     let page = q.page.max(1);
     let page_size = q.page_size.clamp(1, 100);
     let offset = (page - 1) * page_size;
+    let pinned_id = pinned_game_id(&state).await?;
 
     let (rows, total) = match q.host_type {
         Some(ht) => {
@@ -168,7 +208,7 @@ async fn list_games(
         }
     };
 
-    let items: Vec<GameItem> = rows.into_iter().map(GameItem::from).collect();
+    let items: Vec<GameItem> = rows.into_iter().map(|row| GameItem::new(row, pinned_id)).collect();
 
     Ok(Json(serde_json::json!({ "items": items, "total": total })))
 }

@@ -24,6 +24,8 @@ docx）。赛事管理员可以查看、批量下载和管理提交。
   并清理旧文件）。
 - **管理工具** —— 各比赛管理员可列出全部 Writeup、下载单个文件、打包下载
   ZIP，以及删除记录。
+- **赛事置顶** —— 比赛管理员可置顶一场赛事；此后打开平台时选手会直接进入该
+  赛事的提交页，该赛事的管理员则直接进入管理页（站内后续跳转不受影响）。
 - **友好的文件名** —— 下载文件命名为 `{赛事}-{队伍或用户}.{扩展名}`，并对非
   ASCII 名称做 RFC 5987 编码。
 
@@ -124,6 +126,7 @@ npm run dev
 | `POST`   | `/api/account/login`                          | 无         | 用验证码换取 JWT               |
 | `GET`    | `/api/games`                                  | 可选       | 列出训练场 / 赛事              |
 | `GET`    | `/api/games/{game_id}`                         | 可选       | 按 ID 获取赛事详情             |
+| `GET`    | `/api/games/pinned`                           | 可选       | 获取被置顶的赛事               |
 | `GET`    | `/api/writeup`                                | 需要       | 列出我的 Writeup               |
 | `POST`   | `/api/writeup/{game_id}`                      | 需要       | 提交 / 覆盖 Writeup            |
 | `GET`    | `/api/writeup/{game_id}`                      | 需要       | 获取我在某比赛的 Writeup       |
@@ -132,6 +135,8 @@ npm run dev
 | `GET`    | `/api/admin/game/{game_id}/writeup/download`  | 比赛管理员 | 打包下载全部（ZIP）            |
 | `GET`    | `/api/admin/game/{game_id}/writeup/{writeup_id}/file`| 比赛管理员 | 下载单个 Writeup               |
 | `DELETE` | `/api/admin/game/{game_id}/writeup/{writeup_id}`     | 比赛管理员 | 删除某个 Writeup               |
+| `POST`   | `/api/admin/game/{game_id}/pin`               | 比赛管理员 | 置顶该赛事                     |
+| `DELETE` | `/api/admin/game/{game_id}/pin`               | 比赛管理员 | 取消置顶该赛事                 |
 
 鉴权使用 `Authorization: Bearer <jwt>` 请求头。有效 token 需带有权限位 `0`
 （账号已激活）；比赛管理员操作还额外要求权限位 `5`，**且**用户 id 在该比赛的

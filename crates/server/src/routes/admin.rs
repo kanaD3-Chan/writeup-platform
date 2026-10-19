@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, HeaderValue, header},
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
     Json,
 };
 use serde::Deserialize;
@@ -33,6 +33,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/game/{game_id}/writeup/download", get(download_all))
         .route("/game/{game_id}/writeup/{writeup_id}/file", get(download_one))
         .route("/game/{game_id}/writeup/{writeup_id}", axum::routing::delete(delete_one))
+        .route("/game/{game_id}/pin", post(pin_game).delete(unpin_game))
 }
 
 #[derive(sqlx::FromRow)]
@@ -143,4 +144,33 @@ async fn delete_one(
     let _ = crate::storage::delete_file(&abs_path).await;
 
     Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+/// Pin this game so visitors of the platform are sent straight to it.
+async fn pin_game(
+    State(state): State<Arc<AppState>>,
+    RequiredToken(token): RequiredToken,
+    Path(game_id): Path<i64>,
+) -> Result<impl IntoResponse> {
+    require_game_admin(&state, &token, game_id).await?;
+
+    database::pinned::set_game(&state.db, game_id)
+        .await
+        .map_err(anyhow::Error::from)?;
+
+    Ok(Json(serde_json::json!({ "pinned": true })))
+}
+
+async fn unpin_game(
+    State(state): State<Arc<AppState>>,
+    RequiredToken(token): RequiredToken,
+    Path(game_id): Path<i64>,
+) -> Result<impl IntoResponse> {
+    require_game_admin(&state, &token, game_id).await?;
+
+    database::pinned::clear_game(&state.db, game_id)
+        .await
+        .map_err(anyhow::Error::from)?;
+
+    Ok(Json(serde_json::json!({ "pinned": false })))
 }

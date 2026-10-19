@@ -26,6 +26,9 @@ Backend: **Rust** (Axum + sqlx/PostgreSQL). Frontend: **Vue 3** (Vite + Pinia).
   (atomic temp-file write + rename, old file cleaned up).
 - **Admin tools** — per-game admins can list all writeups, download a single
   file, download everything as a ZIP, and delete records.
+- **Pinned event** — game admins can pin one event; opening the platform then
+  takes players to that event's submit page and its admins to its management
+  page (later navigation through the site is unaffected).
 - **Nice filenames** — downloads are named `{game}-{team-or-user}.{ext}` with
   RFC 5987 encoding for non-ASCII names.
 
@@ -129,6 +132,7 @@ if needed.
 | `POST`   | `/api/account/login`                          | none          | Exchange captcha code for JWT  |
 | `GET`    | `/api/games`                                  | optional      | List training arenas / events  |
 | `GET`    | `/api/games/{game_id}`                         | optional      | Get a game by ID               |
+| `GET`    | `/api/games/pinned`                           | optional      | Get the pinned game            |
 | `GET`    | `/api/writeup`                                | required      | List my writeups               |
 | `POST`   | `/api/writeup/{game_id}`                      | required      | Submit / replace a writeup     |
 | `GET`    | `/api/writeup/{game_id}`                      | required      | Get my writeup for a game      |
@@ -137,6 +141,8 @@ if needed.
 | `GET`    | `/api/admin/game/{game_id}/writeup/download`  | game admin    | Download all as ZIP            |
 | `GET`    | `/api/admin/game/{game_id}/writeup/{writeup_id}/file`| game admin    | Download one writeup           |
 | `DELETE` | `/api/admin/game/{game_id}/writeup/{writeup_id}`     | game admin    | Delete a writeup               |
+| `POST`   | `/api/admin/game/{game_id}/pin`               | game admin    | Pin the game                   |
+| `DELETE` | `/api/admin/game/{game_id}/pin`               | game admin    | Unpin the game                 |
 
 Authentication uses a `Authorization: Bearer <jwt>` header. A valid token must
 carry permission `0` (activated account); game-admin operations additionally

@@ -32,7 +32,10 @@ function handleAdmin() {
     <div class="game-content panel-body">
       <div class="card-header">
         <UiIcon :name="game.host_type === 0 ? 'training' : 'flag'" :size="24" />
-        <span class="tag" :class="game.can_submit ? 'tag-success' : 'tag-warning'">{{ game.can_submit ? t('game.open') : t('game.archived') }}</span>
+        <div class="card-tags">
+          <span v-if="game.pinned" class="tag tag-primary"><UiIcon name="pin" :size="12" />{{ t('game.pinned') }}</span>
+          <span class="tag" :class="game.can_submit ? 'tag-success' : 'tag-warning'">{{ game.can_submit ? t('game.open') : t('game.archived') }}</span>
+        </div>
       </div>
       <h2 class="game-name">{{ game.name }}</h2>
       <p class="game-brief">{{ game.brief || t('game.noBrief') }}</p>
@@ -55,6 +58,7 @@ function handleAdmin() {
 .game-card:hover { border-color: var(--border-strong); }
 .game-content { display: flex; flex-direction: column; flex: 1; gap: 12px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; color: var(--text-secondary); }
+.card-tags { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .game-name { font-size: 18px; line-height: 1.5; overflow-wrap: anywhere; }
 .game-brief { color: var(--text-secondary); font-size: 13px; line-height: 1.7; flex: 1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 44px; }
 .game-meta { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--text-tertiary); margin-top: 12px; }

@@ -9,6 +9,7 @@ export interface GameItem {
   end_at: string | null
   archive_at: string | null
   can_submit: boolean
+  pinned: boolean
   admins?: number[]
 }
 
@@ -27,4 +28,16 @@ export function getGames(params?: {
   host_type?: number
 }): Promise<GamesResponse> {
   return api.get('/games', { params }).then(r => r.data)
+}
+
+export function getPinnedGame(): Promise<{ game: GameItem | null }> {
+  return api.get('/games/pinned').then(r => r.data)
+}
+
+export function pinGame(gameId: number): Promise<void> {
+  return api.post(`/admin/game/${gameId}/pin`).then(() => undefined)
+}
+
+export function unpinGame(gameId: number): Promise<void> {
+  return api.delete(`/admin/game/${gameId}/pin`).then(() => undefined)
 }
