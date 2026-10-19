@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { t, translateError } from '@/i18n'
 import { ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter, useRoute, type RouteLocationRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { loginWithCode } from '@/api/account'
+import { getPinnedGame } from '@/api/game'
 import UiIcon from '@/components/UiIcon.vue'
 import logoUrl from '@/assets/ret2shell.svg'
 
@@ -15,6 +16,21 @@ const code = ref('')
 const loading = ref(false)
 const error = ref('')
 
+// With a pinned game every login lands on that game, ignoring the requested
+// page: admins manage it, everyone else submits to it.
+async function loginDestination(): Promise<RouteLocationRaw> {
+  try {
+    const { game } = await getPinnedGame()
+    if (game) {
+      const name = auth.isGameAdmin(game.admins ?? []) ? 'admin' : 'submit'
+      return { name, params: { gameId: game.id } }
+    }
+  } catch {
+    // Pinning is best-effort; fall back to the requested page.
+  }
+  return (route.query.redirect as string) || '/'
+}
+
 async function handleLogin() {
   const trimmed = code.value.trim().toUpperCase()
   if (!trimmed || !/^[0-9A-F]{1,6}$/.test(trimmed)) {
@@ -25,8 +41,7 @@ async function handleLogin() {
   error.value = ''
   try {
     await loginWithCode(trimmed)
-    const redirect = (route.query.redirect as string) || '/'
-    router.push(redirect)
+    router.push(await loginDestination())
   } catch (e: any) {
     error.value = translateError(e.response?.data?.error, 'login.expired')
     code.value = ''
