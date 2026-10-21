@@ -40,10 +40,11 @@ pub struct GameItem {
     pub can_submit: bool,
     pub pinned: bool,
     pub admins: Vec<i64>,
+    pub allowed_formats: Vec<String>,
 }
 
 impl GameItem {
-    fn new(r: GameRow, pinned_id: Option<i64>) -> Self {
+    fn new(r: GameRow, pinned_id: Option<i64>, allowed_formats: Vec<String>) -> Self {
         let pinned = pinned_id == Some(r.id);
         let admins = r
             .admins
@@ -61,6 +62,7 @@ impl GameItem {
             can_submit: can_submit(r.host_type, r.hidden, r.archive_at),
             pinned,
             admins,
+            allowed_formats,
         }
     }
 }
@@ -121,8 +123,11 @@ async fn get_game(
         .await?
         .ok_or_else(|| AppError::NotFound("game not found".into()))?;
 
+    let allowed_formats = database::setting::allowed_formats(&state.db, game_id)
+        .await
+        .map_err(anyhow::Error::from)?;
     let hidden = row.hidden;
-    let item = GameItem::new(row, pinned_game_id(&state).await?);
+    let item = GameItem::new(row, pinned_game_id(&state).await?, allowed_formats);
     if hidden && !token.is_some_and(|t| t.is_basic() && t.is_game_admin(&item.admins)) {
         return Err(AppError::NotFound("game not found".into()));
     }
@@ -143,8 +148,11 @@ async fn get_pinned_game(
         return Ok(Json(serde_json::json!({ "game": null })));
     };
 
+    let allowed_formats = database::setting::allowed_formats(&state.db, game_id)
+        .await
+        .map_err(anyhow::Error::from)?;
     let hidden = row.hidden;
-    let item = GameItem::new(row, Some(game_id));
+    let item = GameItem::new(row, Some(game_id), allowed_formats);
     if hidden && !token.is_some_and(|t| t.is_basic() && t.is_game_admin(&item.admins)) {
         return Ok(Json(serde_json::json!({ "game": null })));
     }
@@ -208,7 +216,17 @@ async fn list_games(
         }
     };
 
-    let items: Vec<GameItem> = rows.into_iter().map(|row| GameItem::new(row, pinned_id)).collect();
+    let ids: Vec<i64> = rows.iter().map(|row| row.id).collect();
+    let mut settings = database::setting::allowed_formats_many(&state.db, &ids)
+        .await
+        .map_err(anyhow::Error::from)?;
+    let items: Vec<GameItem> = rows
+        .into_iter()
+        .map(|row| {
+            let formats = settings.remove(&row.id).unwrap_or_default();
+            GameItem::new(row, pinned_id, formats)
+        })
+        .collect();
 
     Ok(Json(serde_json::json!({ "items": items, "total": total })))
 }

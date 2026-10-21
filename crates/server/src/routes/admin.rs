@@ -34,6 +34,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/game/{game_id}/writeup/{writeup_id}/file", get(download_one))
         .route("/game/{game_id}/writeup/{writeup_id}", axum::routing::delete(delete_one))
         .route("/game/{game_id}/pin", post(pin_game).delete(unpin_game))
+        .route("/game/{game_id}/formats", post(set_formats))
 }
 
 #[derive(sqlx::FromRow)]
@@ -144,6 +145,49 @@ async fn delete_one(
     let _ = crate::storage::delete_file(&abs_path).await;
 
     Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FormatUpdate {
+    pub allowed_formats: Vec<String>,
+}
+
+/// Keep only supported formats, dropping duplicates. An empty selection is
+/// rejected: a game must accept at least one format.
+fn normalize_formats(formats: &[String]) -> Result<Vec<String>> {
+    let mut normalized: Vec<String> = Vec::new();
+    for value in formats {
+        let value = value.trim().to_ascii_lowercase();
+        if !database::setting::SUPPORTED_FORMATS.contains(&value.as_str()) {
+            return Err(AppError::BadRequest("unsupported file format".into()));
+        }
+        if !normalized.contains(&value) {
+            normalized.push(value);
+        }
+    }
+    if normalized.is_empty() {
+        return Err(AppError::BadRequest(
+            "at least one file format must be allowed".into(),
+        ));
+    }
+    Ok(normalized)
+}
+
+/// Which file formats players may submit for this game.
+async fn set_formats(
+    State(state): State<Arc<AppState>>,
+    RequiredToken(token): RequiredToken,
+    Path(game_id): Path<i64>,
+    Json(body): Json<FormatUpdate>,
+) -> Result<impl IntoResponse> {
+    require_game_admin(&state, &token, game_id).await?;
+
+    let formats = normalize_formats(&body.allowed_formats)?;
+    database::setting::set_allowed_formats(&state.db, game_id, &formats)
+        .await
+        .map_err(anyhow::Error::from)?;
+
+    Ok(Json(serde_json::json!({ "allowed_formats": formats })))
 }
 
 /// Pin this game so visitors of the platform are sent straight to it.

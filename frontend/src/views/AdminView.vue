@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { t, dateLocale, translateError } from '@/i18n'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import UiIcon from '@/components/UiIcon.vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getGame, pinGame, unpinGame, type GameItem } from '@/api/game'
+import { getGame, pinGame, unpinGame, updateGameFormats, SUBMISSION_FORMATS, DEFAULT_FORMATS, type GameItem, type SubmissionFormat } from '@/api/game'
 import { getGameWriteups, downloadGameWriteups, downloadUserWriteup, deleteUserWriteup, type WriteupRecord } from '@/api/writeup'
 
 const route = useRoute()
@@ -41,6 +41,7 @@ async function load() {
     game.value = gamesRes
     items.value = writeupRes.items
     total.value = writeupRes.total
+    formats.value = gamesRes.allowed_formats ?? [...DEFAULT_FORMATS]
   } catch (e: any) {
     error.value = translateError(e.response?.data?.error, 'common.loadFailed')
   } finally {
@@ -65,6 +66,51 @@ async function togglePin() {
     pinUpdating.value = false
   }
 }
+
+const formats = ref<SubmissionFormat[]>([...DEFAULT_FORMATS])
+const formatSaving = ref(false)
+const formatError = ref('')
+const formatSaved = ref(false)
+let savedTimer: number | undefined
+
+function formatEnabled(format: SubmissionFormat): boolean {
+  return formats.value.includes(format)
+}
+
+function sortFormats(list: SubmissionFormat[]): SubmissionFormat[] {
+  return [...list].sort((a, b) => SUBMISSION_FORMATS.indexOf(a) - SUBMISSION_FORMATS.indexOf(b))
+}
+
+async function toggleFormat(format: SubmissionFormat) {
+  if (formatSaving.value) return
+  formatError.value = ''
+  formatSaved.value = false
+  const next = formatEnabled(format)
+    ? formats.value.filter(f => f !== format)
+    : sortFormats([...formats.value, format])
+  if (!next.length) {
+    formatError.value = t('admin.formatsAtLeastOne')
+    return
+  }
+  const previous = formats.value
+  formats.value = next
+  formatSaving.value = true
+  try {
+    const result = await updateGameFormats(gameId, next)
+    formats.value = result.allowed_formats
+    if (game.value) game.value = { ...game.value, allowed_formats: result.allowed_formats }
+    formatSaved.value = true
+    window.clearTimeout(savedTimer)
+    savedTimer = window.setTimeout(() => { formatSaved.value = false }, 2000)
+  } catch (e: any) {
+    formats.value = previous
+    formatError.value = translateError(e.response?.data?.error, 'admin.formatsSaveFailed')
+  } finally {
+    formatSaving.value = false
+  }
+}
+
+onBeforeUnmount(() => { window.clearTimeout(savedTimer) })
 
 async function handleDelete(w: WriteupRecord) {
   if (!confirm(t('admin.deleteConfirm', { name: w.team_name ?? w.user_account }))) return
@@ -127,6 +173,22 @@ onMounted(load)
           </div>
         </div>
 
+        <section class="panel format-panel" :aria-label="t('admin.formatsTitle')">
+          <div class="format-heading">
+            <h2><UiIcon name="settings" :size="16" />{{ t('admin.formatsTitle') }}</h2>
+            <span v-if="formatSaving" class="format-status" role="status">{{ t('admin.formatsSaving') }}</span>
+            <span v-else-if="formatSaved" class="format-status saved" role="status">{{ t('admin.formatsSaved') }}</span>
+          </div>
+          <p class="format-hint">{{ t('admin.formatsHint') }}</p>
+          <div class="format-options">
+            <label v-for="format in SUBMISSION_FORMATS" :key="format" class="format-option" :class="{ active: formatEnabled(format), busy: formatSaving }">
+              <input type="checkbox" :checked="formatEnabled(format)" :disabled="formatSaving" @change="toggleFormat(format)" />
+              <span class="format-name">{{ format.toUpperCase() }}</span>
+            </label>
+          </div>
+          <p v-if="formatError" class="format-error" role="alert">{{ formatError }}</p>
+        </section>
+
         <div v-if="items.length === 0" class="state-msg empty">{{ t('admin.empty') }}</div>
 
         <div v-else class="table-wrap panel">
@@ -178,6 +240,18 @@ onMounted(load)
 <style scoped>
 .admin-container { width: 100%; }
 .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.format-panel { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; padding: 16px 20px; }
+.format-heading { display: flex; align-items: center; gap: 12px; }
+.format-heading h2 { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.format-status { font-size: 11px; color: var(--text-tertiary); }
+.format-status.saved { color: var(--accent); }
+.format-hint { font-size: 12px; color: var(--text-secondary); }
+.format-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.format-option { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--overlay); font-size: 13px; cursor: pointer; }
+.format-option.active { border-color: var(--accent); background: var(--accent-muted); }
+.format-option.busy { opacity: 0.6; cursor: wait; }
+.format-option input { accent-color: var(--accent); cursor: inherit; }
+.format-error { font-size: 12px; color: var(--danger); }
 .table { min-width: 900px; }
 .team-name { font-weight: 700; }
 .submitter { min-width: 110px; }

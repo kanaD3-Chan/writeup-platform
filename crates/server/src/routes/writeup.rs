@@ -147,6 +147,16 @@ async fn submit_writeup(
     let file_type = storage::detect_file_type(&data)
         .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
+    // Enforce the formats the game admins enabled for this game.
+    let allowed = database::setting::allowed_formats(&state.db, game_id)
+        .await
+        .map_err(anyhow::Error::from)?;
+    if !allowed.iter().any(|format| format == file_type.as_str()) {
+        return Err(AppError::BadRequest(
+            "unsupported file type for this game".into(),
+        ));
+    }
+
     // Compute SHA-256 for dedup
     let file_hash = format!("{:x}", Sha256::digest(&data));
 

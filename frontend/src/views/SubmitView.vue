@@ -3,7 +3,7 @@ import { t, dateLocale, translateError } from '@/i18n'
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { getGame, type GameItem } from '@/api/game'
+import { getGame, DEFAULT_FORMATS, type GameItem } from '@/api/game'
 import { submitWriteup, getMyWriteupForGame, type WriteupRecord } from '@/api/writeup'
 import FileUpload from '@/components/FileUpload.vue'
 import UiIcon from '@/components/UiIcon.vue'
@@ -24,6 +24,8 @@ const lockReason = ref('')  // non-empty = locked
 
 // A pinned game is the landing page, so there is no list to go back to.
 const showBack = computed(() => (game.value ? !game.value.pinned : !!error.value))
+const formats = computed(() => game.value?.allowed_formats ?? DEFAULT_FORMATS)
+const formatLabel = computed(() => formats.value.map(format => format.toUpperCase()).join(' / '))
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
@@ -102,7 +104,7 @@ onMounted(load)
         </div>
         <section class="panel">
           <div class="panel-body submission-body">
-            <div class="section-heading"><UiIcon name="file" /><h2>{{ t('submit.report') }}</h2><span class="file-formats">{{ t('submit.formats') }}</span></div>
+            <div class="section-heading"><UiIcon name="file" /><h2>{{ t('submit.report') }}</h2><span class="file-formats">{{ t('submit.formats', { formats: formatLabel }) }}</span></div>
             <div v-if="existing" class="existing-card">
               <div class="existing-header"><span class="tag tag-success"><UiIcon name="check" :size="14" />{{ t('submit.submitted') }}</span><span class="existing-date">{{ formatDate(existing.updated_at) }}</span></div>
               <div class="existing-info"><UiIcon name="file" :size="18" /><span class="existing-name">{{ existing.file_name }}</span></div>
@@ -110,7 +112,7 @@ onMounted(load)
             </div>
             <div v-if="lockReason" class="status-message warning">{{ lockMessage(lockReason) }}</div>
             <template v-else>
-              <FileUpload v-model="selectedFile" />
+              <FileUpload v-model="selectedFile" :formats="formats" />
               <div v-if="success" class="status-message success" role="status"><UiIcon name="check" :size="18" />{{ t('submit.success') }}</div>
               <div v-if="error" class="status-message error" role="alert">{{ error }}</div>
               <div class="submit-footer"><span>{{ t('submit.confirmFile') }}</span><button class="btn btn-primary" :disabled="!selectedFile || submitting" @click="handleSubmit"><span v-if="submitting" class="btn-spinner"></span><UiIcon v-else name="upload" :size="18" />{{ submitting ? t('submit.submitting') : (existing ? t('submit.update') : t('game.submit')) }}</button></div>

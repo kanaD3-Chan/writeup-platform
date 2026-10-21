@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { t } from '@/i18n'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import UiIcon from './UiIcon.vue'
+import { DEFAULT_FORMATS, type SubmissionFormat } from '@/api/game'
+
+const props = withDefaults(defineProps<{ formats?: SubmissionFormat[] }>(), {
+  formats: () => DEFAULT_FORMATS,
+})
 
 const dragging = ref(false)
 const selectedFile = defineModel<File | null>({ default: null })
@@ -12,16 +17,30 @@ watch(selectedFile, (file) => {
   if (!file && fileInput.value) fileInput.value.value = ''
 })
 
-const ACCEPTED = ['.pdf', '.docx']
-const ACCEPT_MIME = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
 const MAX_SIZE = 50 * 1024 * 1024
 
+const accept = computed(() => props.formats.map(format => `.${format}`).join(','))
+const formatLabel = computed(() => props.formats.map(format => format.toUpperCase()).join(' / '))
+
+function extensionOf(file: File): string {
+  return (file.name.split('.').pop() ?? '').toLowerCase()
+}
+
 function validate(file: File): string {
-  const ext = '.' + file.name.split('.').pop()?.toLowerCase()
-  if (!ACCEPTED.includes(ext)) return t('upload.unsupported')
+  if (!props.formats.includes(extensionOf(file) as SubmissionFormat)) {
+    return t('upload.unsupported', { formats: formatLabel.value })
+  }
   if (file.size > MAX_SIZE) return t('upload.tooLarge')
   return ''
 }
+
+// A game's accepted formats can change while this component stays mounted.
+watch(() => props.formats, (formats) => {
+  if (selectedFile.value && !formats.includes(extensionOf(selectedFile.value) as SubmissionFormat)) {
+    selectedFile.value = null
+    error.value = ''
+  }
+})
 
 function pick(file: File) {
   const msg = validate(file)
@@ -65,7 +84,7 @@ function clear() {
       <input
         ref="fileInput"
         type="file"
-        :accept="ACCEPTED.join(',')"
+        :accept="accept"
         class="hidden-input" :aria-label="t('upload.choose')"
         @change="onInput"
       />
@@ -79,7 +98,7 @@ function clear() {
           </svg>
         </div>
         <p class="upload-hint">{{ t('upload.drop') }} <span class="link">{{ t('upload.browse') }}</span></p>
-        <p class="upload-types">{{ t('upload.formats') }}</p>
+        <p class="upload-types">{{ t('upload.formats', { formats: formatLabel }) }}</p>
       </template>
 
       <template v-else>

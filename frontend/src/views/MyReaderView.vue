@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { downloadMyWriteup, getMyWriteupForGame, type WriteupRecord } from '@/api/writeup'
 import PdfPreview from '@/components/PdfPreview.vue'
+import DocxPreview from '@/components/DocxPreview.vue'
 import UiIcon from '@/components/UiIcon.vue'
 
 const route = useRoute()
@@ -63,6 +64,7 @@ onBeforeUnmount(() => { loadVersion++ })
     <div v-else-if="error" class="reader-state" role="alert"><p>{{ error }}</p><button class="btn btn-sm" @click="load">{{ t('common.retry') }}</button></div>
     <div v-else-if="!writeup" class="reader-state">{{ t('reader.noSubmission') }}</div>
     <PdfPreview v-else-if="writeup.file_type.toLowerCase() === 'pdf'" :key="`${gameId}-${writeup.id}-${previewVersion}`" source="mine" :game-id="gameId" :writeup-id="writeup.id" :file-name="writeup.file_name" :owner="writeup.team_name || writeup.user_account" @retry="previewVersion++" />
+    <DocxPreview v-else-if="writeup.file_type.toLowerCase() === 'docx'" :key="`${gameId}-${writeup.id}-${previewVersion}`" source="mine" :game-id="gameId" :writeup-id="writeup.id" :file-name="writeup.file_name" :owner="writeup.team_name || writeup.user_account" @retry="previewVersion++" />
     <div v-else class="reader-state"><UiIcon name="file" :size="40" /><p>{{ writeup.file_name }}</p><p>{{ t('reader.unsupportedDownload', { type: writeup.file_type.toUpperCase() }) }}</p></div>
   </div>
 </template>

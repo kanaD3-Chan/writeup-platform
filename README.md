@@ -18,8 +18,14 @@ Backend: **Rust** (Axum + sqlx/PostgreSQL). Frontend: **Vue 3** (Vite + Pinia).
 - **Training vs. competition** — `host_type = 0` (training) submissions are per
   user; `host_type = 1` (competition) submissions are shared per team and can be
   gated by the game's start / archive time.
-- **File validation** — only PDF and docx are accepted, verified by magic bytes
-  (docx is checked for `[Content_Types].xml`). Uploads are capped (default 50 MiB).
+- **File validation** — uploads are verified by magic bytes (docx is checked for
+  `[Content_Types].xml`). Uploads are capped (default 50 MiB).
+- **Per-game formats** — game admins choose which formats players may submit on
+  the management page. Unless a game opts in, it accepts PDF only; existing DOCX
+  submissions stay readable through the online reader.
+- **Online reading** — PDF and DOCX writeups open in a built-in reader (PDF.js
+  and docx-preview), so even historical DOCX submissions can be read without
+  downloading them.
 - **Duplicate detection** — SHA-256 of every upload is stored; the same file for
   the same game from another team/user is rejected.
 - **Resubmission / upsert** — uploading again overwrites the previous file

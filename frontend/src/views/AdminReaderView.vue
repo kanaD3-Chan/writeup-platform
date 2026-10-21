@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { downloadUserWriteup, getGameWriteups, type WriteupRecord } from '@/api/writeup'
 import PdfPreview from '@/components/PdfPreview.vue'
+import DocxPreview from '@/components/DocxPreview.vue'
 import UiIcon from '@/components/UiIcon.vue'
 
 const route = useRoute()
@@ -42,7 +43,9 @@ async function load() {
     }
     items.value = records
     if (!route.query.writeup && records.length) {
-      const first = records.find(w => w.file_type.toLowerCase() === 'pdf') ?? records[0]!
+      const first = records.find(w => w.file_type.toLowerCase() === 'pdf')
+        ?? records.find(w => w.file_type.toLowerCase() === 'docx')
+        ?? records[0]!
       await router.replace({ query: { ...route.query, writeup: first.id } })
     }
   } catch (e: any) {
@@ -128,11 +131,8 @@ watch(() => selected.value?.id, async () => {
 
       <section class="preview-panel" :aria-label="t('reader.preview')">
         <template v-if="selected">
-          <div v-if="selected.file_type.toLowerCase() !== 'pdf'" class="document-header">
-            <span class="document-name" :title="selected.file_name">{{ selected.file_name }}</span>
-            <span class="document-team">{{ selected.team_name || selected.user_account }}</span>
-          </div>
           <PdfPreview v-if="selected.file_type.toLowerCase() === 'pdf'" :key="`${gameId}-${selected.id}-${previewVersion}`" :game-id="gameId" :writeup-id="selected.id" :file-name="selected.file_name" :owner="selected.team_name || selected.user_account" @retry="previewVersion++" />
+          <DocxPreview v-else-if="selected.file_type.toLowerCase() === 'docx'" :key="`${gameId}-${selected.id}-${previewVersion}`" :game-id="gameId" :writeup-id="selected.id" :file-name="selected.file_name" :owner="selected.team_name || selected.user_account" @retry="previewVersion++" />
           <div v-else class="reader-state">
             <p>{{ t('reader.unsupported', { type: selected.file_type.toUpperCase() }) }}</p>
             <button class="text-button" :disabled="downloading.includes(selected.id)" @click="download(selected)">{{ t('reader.downloadRead') }}</button>
@@ -176,9 +176,6 @@ watch(() => selected.value?.id, async () => {
 button:disabled { opacity: 0.5; cursor: wait; }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 .preview-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg-sunken); }
-.document-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--border); font-size: 13px; }
-.document-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-.document-team { flex-shrink: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
 .reader-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 32px; text-align: center; font-size: 14px; color: var(--text-secondary); }
 .text-button { padding: 8px 14px; border-radius: var(--radius-sm); color: var(--text-primary); background: var(--overlay); }
 .download-error { padding: 12px 16px; font-size: 12px; color: var(--danger); border-top: 1px solid var(--border); }
@@ -194,6 +191,5 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--border-focus); 
   .sidebar-header h2 { margin: 0; gap: 8px; flex-shrink: 0; }
   .submission-list { display: flex; gap: 8px; overflow: auto; }
   .writeup-card { flex: 0 0 260px; margin-bottom: 0; }
-  .document-header { padding: 8px 12px; }
 }
 </style>

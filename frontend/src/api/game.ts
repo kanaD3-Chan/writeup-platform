@@ -1,5 +1,10 @@
 import api from './index'
 
+export type SubmissionFormat = 'pdf' | 'docx'
+
+export const SUBMISSION_FORMATS: SubmissionFormat[] = ['pdf', 'docx']
+export const DEFAULT_FORMATS: SubmissionFormat[] = ['pdf']
+
 export interface GameItem {
   id: number
   name: string
@@ -11,6 +16,7 @@ export interface GameItem {
   can_submit: boolean
   pinned: boolean
   admins?: number[]
+  allowed_formats?: SubmissionFormat[]
 }
 
 export interface GamesResponse {
@@ -40,4 +46,8 @@ export function pinGame(gameId: number): Promise<void> {
 
 export function unpinGame(gameId: number): Promise<void> {
   return api.delete(`/admin/game/${gameId}/pin`).then(() => undefined)
+}
+
+export function updateGameFormats(gameId: number, allowedFormats: SubmissionFormat[]): Promise<{ allowed_formats: SubmissionFormat[] }> {
+  return api.post(`/admin/game/${gameId}/formats`, { allowed_formats: allowedFormats }).then(r => r.data)
 }
